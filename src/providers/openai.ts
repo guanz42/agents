@@ -1,11 +1,23 @@
-import { OpenAIProvider, type Model, type ModelResponse, type ModelRequest } from '@openai/agents'
+import { OpenAIProvider, type Model, type ModelRequest, type ModelResponse } from '@openai/agents'
 import type { ProviderClient, ProviderConfig } from './types.js'
+
+type CompatibleApiMode = 'unknown' | 'responses' | 'chat-completions'
 
 interface ChatCompletionFunctionCall {
   id: string
   function: {
     name: string
     arguments: string
+  }
+}
+
+interface ResponsesUnsupportedErrorShape {
+  status?: unknown
+  message?: unknown
+  error?: {
+    message?: unknown
+    code?: unknown
+    type?: unknown
   }
 }
 
@@ -20,11 +32,7 @@ function isChatCompletionFunctionCall(value: unknown): value is ChatCompletionFu
 
   const fn = value.function
 
-  return (
-    isObject(fn) &&
-    typeof fn.name === 'string' &&
-    typeof fn.arguments === 'string'
-  )
+  return isObject(fn) && typeof fn.name === 'string' && typeof fn.arguments === 'string'
 }
 
 function extractToolCalls(providerData: unknown): ChatCompletionFunctionCall[] {
@@ -99,17 +107,138 @@ function wrapCompatibleChatCompletionsModel(model: Model): Model {
   }
 }
 
+function getErrorStatus(error: unknown): number | null {
+  if (!isObject(error)) {
+    return null
+  }
+
+  return typeof error.status === 'number' ? error.status : null
+}
+
+function collectErrorText(error: unknown): string {
+  if (!isObject(error)) {
+    return ''
+  }
+
+  const parts: string[] = []
+  const errorShape = error as ResponsesUnsupportedErrorShape
+
+  if (typeof errorShape.message === 'string') {
+    parts.push(errorShape.message)
+  }
+
+  if (isObject(errorShape.error)) {
+    if (typeof errorShape.error.message === 'string') {
+      parts.push(errorShape.error.message)
+    }
+
+    if (typeof errorShape.error.code === 'string') {
+      parts.push(errorShape.error.code)
+    }
+
+    if (typeof errorShape.error.type === 'string') {
+      parts.push(errorShape.error.type)
+    }
+  }
+
+  return parts.join(' ').toLowerCase()
+}
+
+function isResponsesUnsupportedError(error: unknown): boolean {
+  const status = getErrorStatus(error)
+
+  if (status === 404 || status === 405 || status === 501) {
+    return true
+  }
+
+  if (status !== 400 && status !== 422) {
+    return false
+  }
+
+  const message = collectErrorText(error)
+
+  if (message.length === 0) {
+    return false
+  }
+
+  const referencesResponses = /responses/.test(message)
+  const referencesMissingEndpoint =
+    /not found|unknown|unsupported|does not exist|unrecognized|no route|invalid url|invalid endpoint|unknown path/.test(
+      message
+    )
+
+  return referencesResponses && referencesMissingEndpoint
+}
+
+async function createProviderModel(config: ProviderConfig, useResponses: boolean): Promise<Model> {
+  const provider = new OpenAIProvider({
+    apiKey: config.apiKey,
+    baseURL: config.baseUrl,
+    useResponses
+  })
+
+  const model = await provider.getModel(config.model)
+
+  return useResponses ? model : wrapCompatibleChatCompletionsModel(model)
+}
+
+async function createOpenAICompatibleModel(config: ProviderConfig): Promise<Model> {
+  if (!config.baseUrl) {
+    throw new Error('OpenAI-compatible provider requires baseUrl')
+  }
+
+  const responsesModel = await createProviderModel(config, true)
+  let apiMode: CompatibleApiMode = 'unknown'
+  let chatCompletionsModelPromise: Promise<Model> | null = null
+
+  async function getChatCompletionsModel(): Promise<Model> {
+    chatCompletionsModelPromise ??= createProviderModel(config, false)
+    return chatCompletionsModelPromise
+  }
+
+  async function runWithFallback<T>(operation: (model: Model) => Promise<T> | T): Promise<T> {
+    if (apiMode === 'chat-completions') {
+      return Promise.resolve(operation(await getChatCompletionsModel()))
+    }
+
+    try {
+      const result = await Promise.resolve(operation(responsesModel))
+      apiMode = 'responses'
+      return result
+    } catch (error) {
+      if (!isResponsesUnsupportedError(error)) {
+        throw error
+      }
+
+      apiMode = 'chat-completions'
+      return Promise.resolve(operation(await getChatCompletionsModel()))
+    }
+  }
+
+  return {
+    async getResponse(request: ModelRequest): Promise<ModelResponse> {
+      return runWithFallback((model) => model.getResponse(request))
+    },
+    getStreamedResponse(request) {
+      return {
+        async *[Symbol.asyncIterator]() {
+          const stream = await runWithFallback((model) => model.getStreamedResponse(request))
+
+          for await (const item of stream) {
+            yield item
+          }
+        }
+      }
+    }
+  }
+}
+
 export function createOpenAIProvider(config: ProviderConfig): ProviderClient {
   return {
     name: 'openai',
     model: config.model,
     async createModel() {
-      const provider = new OpenAIProvider({
-        apiKey: config.apiKey,
-        useResponses: true
-      })
-
-      return provider.getModel(config.model)
+      return createProviderModel(config, true)
     }
   }
 }
@@ -119,17 +248,7 @@ export function createOpenAICompatibleProvider(config: ProviderConfig): Provider
     name: 'openai-compatible',
     model: config.model,
     async createModel() {
-      if (!config.baseUrl) {
-        throw new Error('OpenAI-compatible provider requires baseUrl')
-      }
-
-      const provider = new OpenAIProvider({
-        apiKey: config.apiKey,
-        baseURL: config.baseUrl,
-        useResponses: false
-      })
-
-      return wrapCompatibleChatCompletionsModel(await provider.getModel(config.model))
+      return createOpenAICompatibleModel(config)
     }
   }
 }
