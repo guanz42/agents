@@ -1,8 +1,8 @@
 import { Usage } from "@openai/agents";
-import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { beforeEach, describe, expect, it, vi } from "bun:test";
 
-const openAIProviderOptionsMock = vi.hoisted(() => vi.fn());
-const getModelMock = vi.hoisted(() => vi.fn());
+const openAIProviderOptionsMock = vi.fn();
+const getModelMock = vi.fn();
 
 vi.mock("@openai/agents", () => {
   class MockOpenAIProvider {

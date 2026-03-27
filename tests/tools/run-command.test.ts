@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "bun:test";
 import { createRunCommandTool, runCommandSchema } from "../../src/tools/run-command.js";
 
 describe("run_command tool", () => {

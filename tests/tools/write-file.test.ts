@@ -1,7 +1,7 @@
 import { existsSync, mkdtempSync, readFileSync, realpathSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "bun:test";
 import { createWriteFileTool, writeFileSchema } from "../../src/tools/write-file.js";
 
 describe("write_file tool", () => {

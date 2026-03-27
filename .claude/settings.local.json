@@ -5,22 +5,13 @@
       "Bash(npm test:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(vp help:*)",
-      "Bash(pnpm list:*)",
-      "Bash(vp add:*)",
-      "Bash(vp migrate:*)",
-      "Bash(vp install:*)",
-      "Bash(vp check:*)",
-      "Bash(vp test:*)",
-      "Bash(vp build:*)",
       "Bash(git restore:*)",
-      "Bash(vp lint:*)",
       "Bash(node:*)",
       "Bash(chmod +x dist/index.js)",
       "Bash(./dist/index.js --help)",
-      "Bash(pnpm dev:*)",
-      "Bash(vp outdated:*)",
-      "Bash(vp update:*)"
+      "Bash(bun install:*)",
+      "Bash(bun run:*)",
+      "Bash(bun test:*)"
     ]
   }
 }

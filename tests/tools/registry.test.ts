@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "bun:test";
 import { createToolRegistry } from "../../src/tools/registry.js";
 
 describe("tool registry", () => {

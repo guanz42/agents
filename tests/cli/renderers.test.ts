@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it, vi } from "bun:test";
 import { createCliRenderers } from "../../src/cli/renderers.js";
 
 describe("createCliRenderers", () => {

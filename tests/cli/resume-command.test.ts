@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it, vi } from "bun:test";
 import { buildProgram } from "../../src/cli/program.js";
 
 describe("agent resume command", () => {

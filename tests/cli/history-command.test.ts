@@ -1,7 +1,7 @@
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it, vi } from "bun:test";
 import { bootstrapApp } from "../../src/app/bootstrap.js";
 import { createSessionStore } from "../../src/session/store.js";
 

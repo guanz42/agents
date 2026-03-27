@@ -6,9 +6,9 @@ import {
 } from "../../src/agents/delegation.js";
 import { runOrchestrator } from "../../src/agents/orchestrator.js";
 import { readFileSchema } from "../../src/tools/read-file.js";
-import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { beforeEach, describe, expect, it, vi } from "bun:test";
 
-const runMock = vi.hoisted(() => vi.fn());
+const runMock = vi.fn();
 
 vi.mock("@openai/agents", () => {
   class MockAgent {

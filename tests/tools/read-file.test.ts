@@ -1,7 +1,7 @@
 import { mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "bun:test";
 import { createReadFileTool, readFileSchema } from "../../src/tools/read-file.js";
 
 describe("read_file tool", () => {

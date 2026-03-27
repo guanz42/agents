@@ -2,7 +2,7 @@ import { mkdtempSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "bun:test";
 import { createSessionStore, SessionStoreError } from "../../src/session/store.js";
 
 describe("session store", () => {

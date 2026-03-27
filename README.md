@@ -5,13 +5,13 @@ Minimal TypeScript CLI scaffold for a learning-oriented coding-agent demo.
 ## Quick start
 
 ```bash
-vp install
+bun install
 cp .env.example .env
 # then set OPENAI_API_KEY in .env
 # if using an OpenAI-compatible provider, also set OPENAI_BASE_URL
-pnpm dev                        # Start interactive chat session
-pnpm dev -- "Inspect the repo"  # Run task then enter chat
-pnpm dev -- history
+bun run dev                        # Start interactive chat session
+bun run dev -- "Inspect the repo"  # Run task then enter chat
+bun run dev -- history
 ```
 
 **Note:** Interactive chat mode requires a terminal with stdin support.
@@ -19,10 +19,10 @@ pnpm dev -- history
 ## Command surface
 
 ```bash
-pnpm dev                        # Start interactive chat session (default)
-pnpm dev -- "Fix the bug"       # Run task then enter chat
-pnpm dev -- resume <sessionId>  # Resume a previous session
-pnpm dev -- history             # List previous sessions
+bun run dev                        # Start interactive chat session (default)
+bun run dev -- "Fix the bug"       # Run task then enter chat
+bun run dev -- resume <sessionId>  # Resume a previous session
+bun run dev -- history             # List previous sessions
 ```
 
 All commands write JSON session files to `./sessions` (or `AGENT_SESSION_DIR` when configured).
@@ -31,18 +31,18 @@ The CLI loads `.env` automatically at startup. If you use `AGENT_PROVIDER=openai
 
 ## Development
 
-This project uses [Vite+](https://viteplus.dev/) as the unified toolchain:
+This project uses [Bun](https://bun.sh/) as the runtime and toolchain:
 
 ```bash
-vp test       # Run tests
-vp check      # Run format, lint, and type checks
-vp build      # Build for production (with shebang)
+bun test       # Run tests
+bun run lint   # Run TypeScript type check
+bun run build  # Build for production
 ```
 
 Run the CLI:
 
 ```bash
-pnpm dev -- <command>   # Development (tsx)
-vp build                # Build to ./dist
-node dist/index.js      # Run built version (or ./dist/index.js if executable)
+bun run dev -- <command>   # Development (tsx)
+bun run build              # Build to ./dist
+bun run ./dist/index.js    # Run built version
 ```
