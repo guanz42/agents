@@ -15,18 +15,18 @@
     "prepare": "vp config"
   },
   "dependencies": {
-    "@openai/agents": "^0.0.10",
-    "commander": "^13.1.0",
-    "execa": "^9.5.2",
-    "openai": "^4.89.0",
-    "zod": "^3.24.2"
+    "@openai/agents": "^0.8.1",
+    "commander": "^14.0.3",
+    "execa": "^9.6.1",
+    "openai": "^6.33.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
-    "tsx": "^4.19.3",
-    "typescript": "^5.8.2",
-    "vite": "npm:@voidzero-dev/vite-plus-core@latest",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2",
+    "vite": "npm:@voidzero-dev/vite-plus-core@^0.1.14",
     "vite-plus": "latest",
-    "vitest": "npm:@voidzero-dev/vite-plus-test@latest"
+    "vitest": "npm:@voidzero-dev/vite-plus-test@^0.1.14"
   },
   "packageManager": "pnpm@10.33.0",
   "pnpm": {

@@ -14,7 +14,13 @@
       "Bash(vp test:*)",
       "Bash(vp build:*)",
       "Bash(git restore:*)",
-      "Bash(vp lint:*)"
+      "Bash(vp lint:*)",
+      "Bash(node:*)",
+      "Bash(chmod +x dist/index.js)",
+      "Bash(./dist/index.js --help)",
+      "Bash(pnpm dev:*)",
+      "Bash(vp outdated:*)",
+      "Bash(vp update:*)"
     ]
   }
 }
