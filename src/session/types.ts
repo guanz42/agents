@@ -1,5 +1,5 @@
 export interface SessionEvent {
-  type: 'user_task' | 'agent_message' | 'tool_call' | 'tool_result' | 'delegation' | 'final_result'
+  type: 'user_task' | 'user_message' | 'agent_message' | 'tool_call' | 'tool_result' | 'delegation' | 'final_result'
   payload: Record<string, unknown>
   timestamp?: string
 }

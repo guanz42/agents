@@ -7,6 +7,7 @@ export interface RunOrchestratorInput {
   task: string
   tools: ToolDefinition[]
   provider: ProviderClient
+  conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>
   onTextDelta?: (chunk: string) => void | Promise<void>
 }
 
@@ -49,11 +50,20 @@ export async function runOrchestrator(input: RunOrchestratorInput): Promise<Orch
   const agentTools = adaptToolsForAgentSdk(input.tools)
   const model = await resolveModel(input.provider)
 
+  let instructions = 'Route work carefully, use tools deliberately, and keep the response concise.'
+
+  if (input.conversationHistory && input.conversationHistory.length > 0) {
+    const historyContext = input.conversationHistory
+      .map((msg) => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
+      .join('\n')
+    instructions += ` You are in an ongoing multi-turn conversation. Context from previous turns:\n\n${historyContext}`
+  }
+
   const activeAgent =
     createDelegatedAgent(delegatedAgent, agentTools, model) ??
     new Agent({
       name: 'orchestrator',
-      instructions: 'Route work carefully, use tools deliberately, and keep the response concise.',
+      instructions,
       model,
       tools: agentTools
     })

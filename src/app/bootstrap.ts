@@ -1,4 +1,5 @@
 import type { Command } from 'commander'
+import * as readline from 'node:readline'
 import { runOrchestrator, type OrchestratorResult } from '../agents/orchestrator.js'
 import { buildProgram, type CommandHandlers } from '../cli/program.js'
 import { createCliRenderers, type CliRenderers } from '../cli/renderers.js'
@@ -69,6 +70,71 @@ function sanitizeToolOutput(output: unknown): Record<string, unknown> {
 }
 
 const DEFAULT_CHAT_TASK = 'Inspect the current workspace and provide a short summary of what you find.'
+
+const EXIT_COMMANDS = new Set(['/quit', '/exit', '/q', 'exit', 'quit', 'bye'])
+
+const DANGEROUS_OPERATIONS = new Set([
+  'rm -rf',
+  'del /s',
+  'format',
+  'mkfs',
+  'dd if=/dev/zero',
+  'chmod -R 777',
+  'chown -R',
+  'rmdir /s'
+])
+
+function checkDangerousOperation(input: string): { isDangerous: boolean; reason?: string } {
+  const lowerInput = input.toLowerCase()
+
+  for (const dangerous of DANGEROUS_OPERATIONS) {
+    if (lowerInput.includes(dangerous.toLowerCase())) {
+      return { isDangerous: true, reason: `Operation contains potentially dangerous command: ${dangerous}` }
+    }
+  }
+
+  return { isDangerous: false }
+}
+
+function createReadlineInterface(): readline.Interface {
+  return readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+    prompt: '> ',
+    terminal: true
+  })
+}
+
+async function promptUser(rl: readline.Interface, question: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const rlAny = rl as any
+    const onClose = () => reject(new Error('readline closed'))
+
+    rlAny.once('close', onClose)
+
+    rl.question(question, (answer) => {
+      rlAny.removeListener('close', onClose)
+      resolve(answer)
+    })
+  })
+}
+
+function buildConversationContext(events: Array<{ type: string; payload: Record<string, unknown> }>): Array<{
+  role: 'user' | 'assistant'
+  content: string
+}> {
+  const context: Array<{ role: 'user' | 'assistant'; content: string }> = []
+
+  for (const event of events) {
+    if (event.type === 'user_message' && typeof event.payload.content === 'string') {
+      context.push({ role: 'user', content: event.payload.content })
+    } else if (event.type === 'agent_message' && typeof event.payload.content === 'string') {
+      context.push({ role: 'assistant', content: event.payload.content })
+    }
+  }
+
+  return context
+}
 
 function getProviderApiKey(provider: AppConfig['provider']): string | undefined {
   if (provider === 'openai' || provider === 'openai-compatible') {
@@ -187,25 +253,175 @@ export function createCommandHandlers(
 
   return {
     chat: async () => {
-      try {
-        let streamedOutput = false
-        const result = await runTaskFn({
-          task: DEFAULT_CHAT_TASK,
-          config: deps.config,
-          workspaceRoot: deps.workspaceRoot,
-          onTextDelta: (chunk: string) => {
-            streamedOutput = renderers.stream(chunk) || streamedOutput
-          }
-        })
+      const config = loadConfig({
+        ...getConfigFromEnv(),
+        ...(deps.config ?? {})
+      })
+      const workspaceRoot = deps.workspaceRoot ?? process.cwd()
+      const provider = createProvider({
+        provider: config.provider,
+        model: config.model,
+        apiKey: getProviderApiKey(config.provider),
+        baseUrl: getProviderBaseUrl()
+      })
+      const store = createSessionStore(config.sessionDir)
 
-        renderers.info('chat demo executed one local turn')
-        renderers.info(`session: ${result.sessionId}`)
-        if (!streamedOutput) {
-          renderers.info(result.summary)
+      const session = await store.startSession({ task: 'Interactive chat session' })
+
+      renderers.info('Starting interactive chat session. Type /quit or /exit to end.')
+      renderers.info(`Session ID: ${session.id}`)
+      renderers.info('')
+
+      const rl = createReadlineInterface()
+      rl.prompt()
+
+      const cleanup = async () => {
+        rl.close()
+        await store.updateStatus(session.id, 'completed')
+      }
+
+      const rlAny = rl as any
+      rlAny.on('close', async () => {
+        renderers.info('')
+        renderers.info('Session ended.')
+        await cleanup()
+        process.exit(0)
+      })
+
+      try {
+        const baseTools = createToolRegistry([
+          createReadFileTool(workspaceRoot),
+          createWriteFileTool(workspaceRoot),
+          createSearchCodeTool(workspaceRoot),
+          createRunCommandTool(workspaceRoot)
+        ]).list()
+
+        const tools = baseTools.map((tool): ToolDefinition => ({
+          ...tool,
+          async execute(toolInput: unknown): Promise<unknown> {
+            await store.appendEvent(session.id, {
+              type: 'tool_call',
+              payload: {
+                tool: tool.name,
+                input: sanitizeToolInput(toolInput)
+              }
+            })
+
+            const output = await tool.execute(toolInput)
+
+            await store.appendEvent(session.id, {
+              type: 'tool_result',
+              payload: {
+                tool: tool.name,
+                output: sanitizeToolOutput(output)
+              }
+            })
+
+            return output
+          }
+        }))
+
+        let running = true
+
+        while (running) {
+          let userInput: string
+
+          try {
+            userInput = await promptUser(rl, '')
+          } catch (err) {
+            // readline closed (e.g., Ctrl+D or pipe input ended)
+            running = false
+            continue
+          }
+
+          const trimmedInput = userInput.trim()
+
+          if (EXIT_COMMANDS.has(trimmedInput.toLowerCase())) {
+            renderers.info('')
+            renderers.info('Ending chat session.')
+            running = false
+            continue
+          }
+
+          if (trimmedInput.length === 0) {
+            rl.prompt()
+            continue
+          }
+
+          const dangerCheck = checkDangerousOperation(trimmedInput)
+          if (dangerCheck.isDangerous) {
+            renderers.info('')
+            renderers.info(`Warning: ${dangerCheck.reason}`)
+            let confirm: string
+            try {
+              confirm = await promptUser(rl, 'Are you sure you want to proceed? (yes/no): ')
+            } catch (err) {
+              renderers.info('Operation cancelled (input ended).')
+              renderers.info('')
+              rl.prompt()
+              continue
+            }
+            if (confirm.toLowerCase() !== 'yes') {
+              renderers.info('Operation cancelled.')
+              renderers.info('')
+              rl.prompt()
+              continue
+            }
+          }
+
+          await store.appendEvent(session.id, {
+            type: 'user_message',
+            payload: { content: trimmedInput }
+          })
+
+          const currentSession = await store.readSession(session.id)
+          const conversationHistory = buildConversationContext(currentSession.events)
+
+          let streamedOutput = false
+          let agentResponse = ''
+
+          const result = await runOrchestrator({
+            task: trimmedInput,
+            provider,
+            tools,
+            conversationHistory: conversationHistory.length > 2 ? conversationHistory.slice(-2) : undefined,
+            onTextDelta: (chunk: string) => {
+              streamedOutput = renderers.stream(chunk) || streamedOutput
+              agentResponse += chunk
+            }
+          })
+
+          if (!streamedOutput && agentResponse.length === 0 && result.summary) {
+            renderers.info(result.summary)
+            agentResponse = result.summary
+          }
+
+          renderers.info('')
+          renderers.info('')
+
+          await store.appendEvent(session.id, {
+            type: 'agent_message',
+            payload: { content: agentResponse || result.summary }
+          })
+
+          await store.appendEvent(session.id, {
+            type: 'delegation',
+            payload: {
+              delegatedAgent: result.delegatedAgent
+            }
+          })
+
+          rl.prompt()
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown runtime error'
-        renderers.error(`chat failed: ${errorMessage}`)
+        renderers.error(`chat error: ${errorMessage}`)
+
+        await store.appendEvent(session.id, {
+          type: 'final_result',
+          payload: { error: errorMessage }
+        })
+        await store.updateStatus(session.id, 'failed')
       }
     },
     run: async (task: string) => {

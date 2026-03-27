@@ -5,6 +5,7 @@ import type { SessionEvent, SessionRecord } from './types.js'
 
 const SESSION_EVENT_TYPES = new Set<SessionEvent['type']>([
   'user_task',
+  'user_message',
   'agent_message',
   'tool_call',
   'tool_result',
@@ -190,11 +191,23 @@ export function createSessionStore(rootDir: string) {
     }
   }
 
+  async function getConversationHistory(sessionId: string, maxTurns?: number): Promise<SessionEvent[]> {
+    const session = await readSession(sessionId)
+    const events = session.events.filter((e) => e.type === 'user_message' || e.type === 'agent_message')
+
+    if (maxTurns !== undefined) {
+      return events.slice(-maxTurns * 2)
+    }
+
+    return events
+  }
+
   return {
     startSession,
     appendEvent,
     readSession,
     updateStatus,
-    listSessions
+    listSessions,
+    getConversationHistory
   }
 }
