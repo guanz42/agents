@@ -1,17 +1,23 @@
 {
   "name": "coding-agent-demo",
   "version": "0.1.0",
-  "private": true,
+  "description": "A minimal TypeScript CLI scaffold for a learning-oriented coding-agent demo",
+  "license": "MIT",
   "bin": {
     "agent": "./dist/index.js"
   },
   "type": "module",
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "bun build src/index.ts --target node --outdir dist --external @openai/* --external commander --external execa --external zod",
     "dev": "tsx src/index.ts",
     "test": "bun test",
     "lint": "tsc --noEmit",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "bun run build"
   },
   "dependencies": {
     "@openai/agents": "^0.8.1",
@@ -25,5 +31,8 @@
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   },
-  "packageManager": "bun@1.2.0"
+  "packageManager": "bun@1.2.0",
+  "publishConfig": {
+    "access": "public"
+  }
 }
