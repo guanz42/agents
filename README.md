@@ -33,14 +33,13 @@ This project uses [Vite+](https://viteplus.dev/) as the unified toolchain:
 ```bash
 vp test       # Run tests
 vp check      # Run format, lint, and type checks
-vp build      # Build for production
-vp pack       # Build library package
+vp build      # Build for production (with shebang)
 ```
 
 Run the CLI:
 
 ```bash
-pnpm dev -- <command>     # Development (tsx)
-pnpm run build            # Build to ./dist
-./dist/index.js <command> # Run built version
+pnpm dev -- <command>   # Development (tsx)
+vp build                # Build to ./dist
+node dist/index.js      # Run built version (or ./dist/index.js if executable)
 ```
