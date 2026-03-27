@@ -7,6 +7,7 @@ export interface RunOrchestratorInput {
   task: string
   tools: ToolDefinition[]
   provider: ProviderClient
+  onTextDelta?: (chunk: string) => void | Promise<void>
 }
 
 export interface OrchestratorResult {
@@ -27,6 +28,22 @@ async function resolveModel(provider: ProviderClient): Promise<string | Model> {
   return isPlannedAnthropicModel(createdModel) ? provider.model : createdModel
 }
 
+function stringifyFinalOutput(finalOutput: unknown): string {
+  if (typeof finalOutput === 'string') {
+    return finalOutput
+  }
+
+  return finalOutput === undefined ? '' : JSON.stringify(finalOutput)
+}
+
+function normalizeTextChunk(chunk: unknown): string {
+  if (typeof chunk === 'string') {
+    return chunk
+  }
+
+  return chunk instanceof Uint8Array ? Buffer.from(chunk).toString('utf8') : String(chunk)
+}
+
 export async function runOrchestrator(input: RunOrchestratorInput): Promise<OrchestratorResult> {
   const delegatedAgent = chooseSubAgent(input.task)
   const agentTools = adaptToolsForAgentSdk(input.tools)
@@ -41,15 +58,18 @@ export async function runOrchestrator(input: RunOrchestratorInput): Promise<Orch
       tools: agentTools
     })
 
-  const result = await run(activeAgent, input.task)
+  const result = await run(activeAgent, input.task, { stream: true })
+
+  const textStream = result.toTextStream({ compatibleWithNodeStreams: true })
+
+  for await (const chunk of textStream) {
+    await input.onTextDelta?.(normalizeTextChunk(chunk))
+  }
+
+  await result.completed
 
   return {
     delegatedAgent,
-    summary:
-      typeof result.finalOutput === 'string'
-        ? result.finalOutput
-        : result.finalOutput === undefined
-          ? ''
-          : JSON.stringify(result.finalOutput)
+    summary: stringifyFinalOutput(result.finalOutput)
   }
 }

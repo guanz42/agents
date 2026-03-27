@@ -2,6 +2,8 @@ import { OpenAIProvider, type Model, type ModelRequest, type ModelResponse } fro
 import type { ProviderClient, ProviderConfig } from './types.js'
 
 type CompatibleApiMode = 'unknown' | 'responses' | 'chat-completions'
+type StreamResponse = ReturnType<Model['getStreamedResponse']>
+type StreamItem = StreamResponse extends AsyncIterable<infer T> ? T : never
 
 interface ChatCompletionFunctionCall {
   id: string
@@ -215,6 +217,61 @@ async function createOpenAICompatibleModel(config: ProviderConfig): Promise<Mode
     }
   }
 
+  async function *streamWithFallback(request: ModelRequest): AsyncGenerator<StreamItem, void, undefined> {
+    if (apiMode === 'chat-completions') {
+      const fallbackStream = await (await getChatCompletionsModel()).getStreamedResponse(request)
+
+      for await (const item of fallbackStream) {
+        yield item
+      }
+
+      return
+    }
+
+    let responsesStream: StreamResponse
+
+    try {
+      responsesStream = await responsesModel.getStreamedResponse(request)
+    } catch (error) {
+      if (!isResponsesUnsupportedError(error)) {
+        throw error
+      }
+
+      apiMode = 'chat-completions'
+
+      const fallbackStream = await (await getChatCompletionsModel()).getStreamedResponse(request)
+
+      for await (const item of fallbackStream) {
+        yield item
+      }
+
+      return
+    }
+
+    let yieldedAnyItems = false
+
+    try {
+      for await (const item of responsesStream) {
+        yieldedAnyItems = true
+        yield item
+      }
+
+      apiMode = 'responses'
+    } catch (error) {
+      if (yieldedAnyItems || !isResponsesUnsupportedError(error)) {
+        throw error
+      }
+
+      apiMode = 'chat-completions'
+
+      const fallbackStream = await (await getChatCompletionsModel()).getStreamedResponse(request)
+
+      for await (const item of fallbackStream) {
+        yield item
+      }
+    }
+  }
+
   return {
     async getResponse(request: ModelRequest): Promise<ModelResponse> {
       return runWithFallback((model) => model.getResponse(request))
@@ -222,9 +279,7 @@ async function createOpenAICompatibleModel(config: ProviderConfig): Promise<Mode
     getStreamedResponse(request) {
       return {
         async *[Symbol.asyncIterator]() {
-          const stream = await runWithFallback((model) => model.getStreamedResponse(request))
-
-          for await (const item of stream) {
+          for await (const item of streamWithFallback(request)) {
             yield item
           }
         }

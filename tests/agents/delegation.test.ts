@@ -1,10 +1,11 @@
+import { Readable } from 'node:stream'
 import {
   adaptToolsForAgentSdk,
   chooseSubAgent,
   createDelegatedAgent
 } from '../../src/agents/delegation.js'
-import { readFileSchema } from '../../src/tools/read-file.js'
 import { runOrchestrator } from '../../src/agents/orchestrator.js'
+import { readFileSchema } from '../../src/tools/read-file.js'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const runMock = vi.hoisted(() => vi.fn())
@@ -47,6 +48,14 @@ vi.mock('@openai/agents', () => {
 beforeEach(() => {
   runMock.mockReset()
 })
+
+function createStreamedRunResult(finalOutput: unknown, chunks: Array<string | Uint8Array>) {
+  return {
+    finalOutput,
+    completed: Promise.resolve(),
+    toTextStream: vi.fn(() => Readable.from(chunks))
+  }
+}
 
 describe('chooseSubAgent', () => {
   it('routes repository inspection work to research-agent', () => {
@@ -141,7 +150,7 @@ describe('adaptToolsForAgentSdk', () => {
 
 describe('runOrchestrator', () => {
   it('delegates to coding-agent when routing matches coding work', async () => {
-    runMock.mockResolvedValue({ finalOutput: 'delegated summary' })
+    runMock.mockResolvedValue(createStreamedRunResult('delegated summary', ['delegated ', 'summary']))
 
     const result = await runOrchestrator({
       task: 'Debug the failing workflow',
@@ -158,6 +167,7 @@ describe('runOrchestrator', () => {
     expect(runMock).toHaveBeenCalledTimes(1)
     expect(runMock.mock.calls[0][0].name).toBe('coding-agent')
     expect(runMock.mock.calls[0][0].model).toBe('gpt-4.1')
+    expect(runMock.mock.calls[0][2]).toEqual({ stream: true })
   })
 
   it('uses fallback orchestrator model object and stringifies object output', async () => {
@@ -166,7 +176,7 @@ describe('runOrchestrator', () => {
       getStreamedResponse: vi.fn()
     }
     const createModel = vi.fn(async () => resolvedModel)
-    runMock.mockResolvedValue({ finalOutput: { ok: true } })
+    runMock.mockResolvedValue(createStreamedRunResult({ ok: true }, []))
 
     const result = await runOrchestrator({
       task: 'Say hello politely',
@@ -191,7 +201,7 @@ describe('runOrchestrator', () => {
       getStreamedResponse: vi.fn()
     }
 
-    runMock.mockResolvedValue({ finalOutput: 'delegated summary' })
+    runMock.mockResolvedValue(createStreamedRunResult('delegated summary', []))
 
     await runOrchestrator({
       task: 'Implement parser changes safely',
@@ -206,5 +216,95 @@ describe('runOrchestrator', () => {
     expect(runMock).toHaveBeenCalledTimes(1)
     expect(runMock.mock.calls[0][0].name).toBe('coding-agent')
     expect(runMock.mock.calls[0][0].model).toBe(resolvedModel)
+  })
+
+  it('forwards streamed text deltas before returning the final summary', async () => {
+    const onTextDelta = vi.fn(async () => undefined)
+    const streamedResult = createStreamedRunResult('final summary', ['part 1', ' + part 2'])
+    const resolvedModel = {
+      getResponse: vi.fn(),
+      getStreamedResponse: vi.fn()
+    }
+    runMock.mockResolvedValue(streamedResult)
+
+    const result = await runOrchestrator({
+      task: 'Summarize the workspace',
+      tools: [],
+      provider: {
+        name: 'openai',
+        model: 'gpt-4.1',
+        createModel: async () => resolvedModel
+      },
+      onTextDelta
+    })
+
+    expect(streamedResult.toTextStream).toHaveBeenCalledWith({ compatibleWithNodeStreams: true })
+    expect(onTextDelta).toHaveBeenNthCalledWith(1, 'part 1')
+    expect(onTextDelta).toHaveBeenNthCalledWith(2, ' + part 2')
+    expect(result.summary).toBe('final summary')
+  })
+
+  it('normalizes streamed Buffer chunks before forwarding text deltas', async () => {
+    const onTextDelta = vi.fn(async () => undefined)
+    const streamedResult = createStreamedRunResult('buffer summary', [Buffer.from('buffer chunk')])
+    runMock.mockResolvedValue(streamedResult)
+
+    await runOrchestrator({
+      task: 'Summarize the workspace',
+      tools: [],
+      provider: {
+        name: 'openai',
+        model: 'gpt-4.1',
+        createModel: async () => ({
+          getResponse: vi.fn(),
+          getStreamedResponse: vi.fn()
+        })
+      },
+      onTextDelta
+    })
+
+    expect(onTextDelta).toHaveBeenCalledWith('buffer chunk')
+  })
+
+  it('waits for completion before reading the final summary', async () => {
+    const completed = vi.fn<() => void>()
+    let resolveCompleted = () => undefined
+    const completedPromise = new Promise<void>((resolve) => {
+      resolveCompleted = () => {
+        completed()
+        resolve()
+      }
+    })
+    const stream = Readable.from(['chunk'])
+    const finalOutputHolder: { value: unknown } = { value: undefined }
+    const streamedResult = {
+      get finalOutput() {
+        return finalOutputHolder.value
+      },
+      completed: completedPromise,
+      toTextStream: vi.fn(() => stream)
+    }
+    runMock.mockResolvedValue(streamedResult)
+
+    const resultPromise = runOrchestrator({
+      task: 'Summarize the workspace',
+      tools: [],
+      provider: {
+        name: 'openai',
+        model: 'gpt-4.1',
+        createModel: async () => ({
+          getResponse: vi.fn(),
+          getStreamedResponse: vi.fn()
+        })
+      }
+    })
+
+    await Promise.resolve()
+    finalOutputHolder.value = 'ready after completion'
+    resolveCompleted()
+
+    const result = await resultPromise
+    expect(completed).toHaveBeenCalledTimes(1)
+    expect(result.summary).toBe('ready after completion')
   })
 })

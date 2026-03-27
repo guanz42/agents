@@ -2,7 +2,6 @@ import type { Command } from 'commander'
 import { runOrchestrator, type OrchestratorResult } from '../agents/orchestrator.js'
 import { buildProgram, type CommandHandlers } from '../cli/program.js'
 import { createCliRenderers, type CliRenderers } from '../cli/renderers.js'
-import { loadConfig, type AppConfig } from './config.js'
 import { createProvider } from '../providers/factory.js'
 import { SessionStoreError, createSessionStore } from '../session/store.js'
 import { createReadFileTool } from '../tools/read-file.js'
@@ -10,6 +9,7 @@ import { createRunCommandTool } from '../tools/run-command.js'
 import { createSearchCodeTool } from '../tools/search-code.js'
 import { createToolRegistry, type ToolDefinition } from '../tools/registry.js'
 import { createWriteFileTool } from '../tools/write-file.js'
+import { loadConfig, type AppConfig } from './config.js'
 
 export interface BootstrapResult {
   program: Command
@@ -19,6 +19,7 @@ export interface RunTaskInput {
   task: string
   config?: Partial<AppConfig>
   workspaceRoot?: string
+  onTextDelta?: (chunk: string) => void | Promise<void>
   orchestratorRunner?: (input: Parameters<typeof runOrchestrator>[0]) => Promise<OrchestratorResult>
 }
 
@@ -138,7 +139,12 @@ export async function runTask(input: RunTaskInput): Promise<RunTaskResult> {
 
   try {
     const orchestratorRunner = input.orchestratorRunner ?? runOrchestrator
-    const result = await orchestratorRunner({ task: input.task, provider, tools })
+    const result = await orchestratorRunner({
+      task: input.task,
+      provider,
+      tools,
+      onTextDelta: input.onTextDelta
+    })
 
     await store.appendEvent(session.id, {
       type: 'delegation',
@@ -182,15 +188,21 @@ export function createCommandHandlers(
   return {
     chat: async () => {
       try {
+        let streamedOutput = false
         const result = await runTaskFn({
           task: DEFAULT_CHAT_TASK,
           config: deps.config,
-          workspaceRoot: deps.workspaceRoot
+          workspaceRoot: deps.workspaceRoot,
+          onTextDelta: (chunk: string) => {
+            streamedOutput = renderers.stream(chunk) || streamedOutput
+          }
         })
 
         renderers.info('chat demo executed one local turn')
         renderers.info(`session: ${result.sessionId}`)
-        renderers.info(result.summary)
+        if (!streamedOutput) {
+          renderers.info(result.summary)
+        }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown runtime error'
         renderers.error(`chat failed: ${errorMessage}`)
@@ -198,14 +210,20 @@ export function createCommandHandlers(
     },
     run: async (task: string) => {
       try {
+        let streamedOutput = false
         const result = await runTaskFn({
           task,
           config: deps.config,
-          workspaceRoot: deps.workspaceRoot
+          workspaceRoot: deps.workspaceRoot,
+          onTextDelta: (chunk: string) => {
+            streamedOutput = renderers.stream(chunk) || streamedOutput
+          }
         })
 
         renderers.info(`session: ${result.sessionId}`)
-        renderers.info(result.summary)
+        if (!streamedOutput) {
+          renderers.info(result.summary)
+        }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown runtime error'
         renderers.error(`run failed: ${errorMessage}`)

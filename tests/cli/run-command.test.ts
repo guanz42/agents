@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import type { OrchestratorResult, RunOrchestratorInput } from '../../src/agents/orchestrator.js'
-import { runTask } from '../../src/app/bootstrap.js'
+import { createCommandHandlers, runTask } from '../../src/app/bootstrap.js'
 import { createSessionStore } from '../../src/session/store.js'
 
 describe('runTask runtime wiring', () => {
@@ -102,5 +102,105 @@ describe('runTask runtime wiring', () => {
       type: 'final_result',
       payload: { error: 'boom' }
     })
+  })
+
+  it('forwards text deltas to the provided streaming callback', async () => {
+    const sessionDir = mkdtempSync(path.join(tmpdir(), 'agent-run-'))
+    const chunks: string[] = []
+
+    const result = await runTask({
+      task: 'Inspect the sample repo',
+      config: {
+        provider: 'anthropic',
+        model: 'claude-3-7',
+        sessionDir
+      },
+      onTextDelta: async (chunk: string) => {
+        chunks.push(chunk)
+      },
+      orchestratorRunner: vi.fn(async (input: RunOrchestratorInput): Promise<OrchestratorResult> => {
+        await input.onTextDelta?.('hello')
+        await input.onTextDelta?.(' world')
+
+        return {
+          delegatedAgent: 'research-agent',
+          summary: 'hello world'
+        }
+      })
+    })
+
+    expect(result.summary).toBe('hello world')
+    expect(chunks).toEqual(['hello', ' world'])
+  })
+})
+
+describe('run command output streaming', () => {
+  it('streams chunks and suppresses duplicate final summary output', async () => {
+    const renderers = {
+      info: vi.fn(),
+      error: vi.fn(),
+      stream: vi.fn(() => true)
+    }
+    const runTaskFn = vi.fn(async (input) => {
+      await input.onTextDelta?.('hello')
+      await input.onTextDelta?.(' world')
+
+      return {
+        sessionId: 'session-123',
+        summary: 'hello world'
+      }
+    })
+
+    const handlers = createCommandHandlers(renderers, { runTaskFn })
+    await handlers.run('Inspect the sample repo')
+
+    expect(renderers.stream).toHaveBeenNthCalledWith(1, 'hello')
+    expect(renderers.stream).toHaveBeenNthCalledWith(2, ' world')
+    expect(renderers.info).toHaveBeenCalledWith('session: session-123')
+    expect(renderers.info).not.toHaveBeenCalledWith('hello world')
+    expect(renderers.error).not.toHaveBeenCalled()
+  })
+
+  it('prints the final summary when no streamed chunks are emitted', async () => {
+    const renderers = {
+      info: vi.fn(),
+      error: vi.fn(),
+      stream: vi.fn(() => false)
+    }
+    const handlers = createCommandHandlers(renderers, {
+      runTaskFn: vi.fn(async () => ({
+        sessionId: 'session-123',
+        summary: 'final summary'
+      }))
+    })
+
+    await handlers.run('Inspect the sample repo')
+
+    expect(renderers.info).toHaveBeenCalledWith('session: session-123')
+    expect(renderers.info).toHaveBeenCalledWith('final summary')
+    expect(renderers.stream).not.toHaveBeenCalled()
+  })
+
+  it('prints the final summary when streaming callback receives only empty chunks', async () => {
+    const renderers = {
+      info: vi.fn(),
+      error: vi.fn(),
+      stream: vi.fn(() => false)
+    }
+    const runTaskFn = vi.fn(async (input) => {
+      await input.onTextDelta?.('')
+
+      return {
+        sessionId: 'session-123',
+        summary: 'final summary'
+      }
+    })
+
+    const handlers = createCommandHandlers(renderers, { runTaskFn })
+    await handlers.run('Inspect the sample repo')
+
+    expect(renderers.stream).toHaveBeenCalledWith('')
+    expect(renderers.info).toHaveBeenCalledWith('session: session-123')
+    expect(renderers.info).toHaveBeenCalledWith('final summary')
   })
 })

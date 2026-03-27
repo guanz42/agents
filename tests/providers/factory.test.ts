@@ -253,6 +253,49 @@ describe('createProvider', () => {
     expect(openAIProviderOptionsMock).toHaveBeenCalledTimes(2)
   })
 
+  it('falls back when a streamed responses error is raised during iteration before any items are yielded', async () => {
+    const responsesModel = createResponseModel({
+      getStreamedResponse: vi.fn(() => ({
+        [Symbol.asyncIterator]() {
+          return {
+            async next() {
+              throw createUnsupportedResponsesError(404, 'POST /responses not found')
+            }
+          }
+        }
+      }))
+    })
+    const chatStream = {
+      async *[Symbol.asyncIterator]() {
+        yield { type: 'response.output_text.delta', delta: 'fallback after iteration failure' }
+      }
+    }
+    const chatModel = createResponseModel({
+      getStreamedResponse: vi.fn(() => chatStream)
+    })
+
+    getModelMock.mockResolvedValueOnce(responsesModel).mockResolvedValueOnce(chatModel)
+
+    const provider = createProvider({
+      provider: 'openai-compatible',
+      model: 'llama-3.1',
+      apiKey: 'compat-key',
+      baseUrl: 'https://example.com/v1'
+    })
+    const model = await provider.createModel()
+
+    if (!('getStreamedResponse' in model)) {
+      throw new Error('expected streamed model method')
+    }
+
+    const firstItems = await collectStream(model.getStreamedResponse({} as never))
+    const secondItems = await collectStream(model.getStreamedResponse({} as never))
+
+    expect(firstItems).toEqual([{ type: 'response.output_text.delta', delta: 'fallback after iteration failure' }])
+    expect(secondItems).toEqual([{ type: 'response.output_text.delta', delta: 'fallback after iteration failure' }])
+    expect(openAIProviderOptionsMock).toHaveBeenCalledTimes(2)
+  })
+
   it('does not fall back on unrelated request failures', async () => {
     const failure = { status: 429, message: 'rate limited' }
     const responsesModel = createResponseModel({
