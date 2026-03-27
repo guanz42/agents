@@ -223,7 +223,7 @@ async function createOpenAICompatibleModel(config: ProviderConfig): Promise<Mode
     request: ModelRequest,
   ): AsyncGenerator<StreamItem, void, undefined> {
     if (apiMode === "chat-completions") {
-      const fallbackStream = await (await getChatCompletionsModel()).getStreamedResponse(request);
+      const fallbackStream = (await getChatCompletionsModel()).getStreamedResponse(request);
 
       for await (const item of fallbackStream) {
         yield item;
@@ -235,7 +235,7 @@ async function createOpenAICompatibleModel(config: ProviderConfig): Promise<Mode
     let responsesStream: StreamResponse;
 
     try {
-      responsesStream = await responsesModel.getStreamedResponse(request);
+      responsesStream = responsesModel.getStreamedResponse(request);
     } catch (error) {
       if (!isResponsesUnsupportedError(error)) {
         throw error;
@@ -243,7 +243,7 @@ async function createOpenAICompatibleModel(config: ProviderConfig): Promise<Mode
 
       apiMode = "chat-completions";
 
-      const fallbackStream = await (await getChatCompletionsModel()).getStreamedResponse(request);
+      const fallbackStream = (await getChatCompletionsModel()).getStreamedResponse(request);
 
       for await (const item of fallbackStream) {
         yield item;
@@ -268,7 +268,7 @@ async function createOpenAICompatibleModel(config: ProviderConfig): Promise<Mode
 
       apiMode = "chat-completions";
 
-      const fallbackStream = await (await getChatCompletionsModel()).getStreamedResponse(request);
+      const fallbackStream = (await getChatCompletionsModel()).getStreamedResponse(request);
 
       for await (const item of fallbackStream) {
         yield item;

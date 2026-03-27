@@ -42,7 +42,7 @@ vi.mock("@openai/agents", () => {
       name: string;
       description: string;
       parameters: unknown;
-      execute: (input: Record<string, unknown>) => Promise<unknown> | unknown;
+      execute: (input: Record<string, unknown>) => Promise<unknown>;
     }) => ({
       type: "function",
       name,

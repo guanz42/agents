@@ -14,7 +14,7 @@ export function createCliRenderers(output: CliOutput = console): CliRenderers {
   let streamLineOpen = false;
 
   const writeChunk =
-    output.write ??
+    (output as { write?: (this: void, chunk: string) => void }).write ??
     (typeof process.stdout.write === "function"
       ? (chunk: string) => {
           process.stdout.write(chunk);

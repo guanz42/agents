@@ -71,8 +71,7 @@ function sanitizeToolOutput(output: unknown): Record<string, unknown> {
   return { value: String(output) };
 }
 
-const DEFAULT_CHAT_TASK =
-  "Inspect the current workspace and provide a short summary of what you find.";
+// Removed DEFAULT_CHAT_TASK - unused constant
 
 const EXIT_COMMANDS = new Set(["/quit", "/exit", "/q", "exit", "quit", "bye"]);
 
@@ -340,7 +339,7 @@ export function createCommandHandlers(
 
           try {
             userInput = await promptUser(rl, "");
-          } catch (err) {
+          } catch {
             // readline closed (e.g., Ctrl+D or pipe input ended)
             running = false;
             continue;
@@ -367,7 +366,7 @@ export function createCommandHandlers(
             let confirm: string;
             try {
               confirm = await promptUser(rl, "Are you sure you want to proceed? (yes/no): ");
-            } catch (err) {
+            } catch {
               renderers.info("Operation cancelled (input ended).");
               renderers.info("");
               rl.prompt();
@@ -477,7 +476,7 @@ export function createCommandHandlers(
           .find((event) => event.type === "delegation");
         if (lastDelegation) {
           renderers.info(
-            `delegatedAgent=${String(lastDelegation.payload.delegatedAgent ?? "none")}`,
+            `delegatedAgent=${JSON.stringify(lastDelegation.payload.delegatedAgent ?? "none")}`,
           );
         }
 
