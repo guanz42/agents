@@ -3,3 +3,4 @@ dist
 .env
 sessions/*.json
 coverage
+.claude/
