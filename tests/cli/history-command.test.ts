@@ -12,15 +12,15 @@ describe("agent history command", () => {
 
     const first = await store.startSession({ task: "Inspect module boundaries" });
     await store.appendEvent(first.id, {
-      type: "user_task",
-      payload: { task: "Inspect module boundaries" },
+      type: "user_message",
+      payload: { content: "Inspect module boundaries" },
     });
     await store.updateStatus(first.id, "completed");
 
     const second = await store.startSession({ task: "Review the parser changes" });
     await store.appendEvent(second.id, {
-      type: "user_task",
-      payload: { task: "Review the parser changes" },
+      type: "user_message",
+      payload: { content: "Review the parser changes" },
     });
     await store.updateStatus(second.id, "failed");
 
@@ -29,10 +29,8 @@ describe("agent history command", () => {
 
     try {
       const { program } = bootstrapApp({
-        commandHandlerDeps: {
-          config: {
-            sessionDir,
-          },
+        config: {
+          sessionDir,
         },
       });
 
@@ -57,10 +55,8 @@ describe("agent history command", () => {
 
     try {
       const { program } = bootstrapApp({
-        commandHandlerDeps: {
-          config: {
-            sessionDir,
-          },
+        config: {
+          sessionDir,
         },
       });
 

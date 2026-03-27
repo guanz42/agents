@@ -1,8 +1,7 @@
 import { Command } from "commander";
 
 export interface CommandHandlers {
-  chat(): Promise<void> | void;
-  run(task: string): Promise<void> | void;
+  chat(initialTask?: string): Promise<void> | void;
   resume(sessionId: string): Promise<void> | void;
   history(): Promise<void> | void;
 }
@@ -10,7 +9,6 @@ export interface CommandHandlers {
 function createDefaultHandlers(): CommandHandlers {
   return {
     chat: () => undefined,
-    run: () => undefined,
     resume: () => undefined,
     history: () => undefined,
   };
@@ -20,18 +18,11 @@ export function buildProgram(handlers: CommandHandlers = createDefaultHandlers()
   const program = new Command().name("agent");
 
   program
-    .command("chat")
+    .command("chat", { isDefault: true })
     .description("Start an interactive agent session")
-    .action(async () => {
-      await handlers.chat();
-    });
-
-  program
-    .command("run")
-    .argument("<task>")
-    .description("Run a coding-agent task")
-    .action(async (task: string) => {
-      await handlers.run(task);
+    .argument("[initialTask]", "Optional initial task to execute")
+    .action(async (initialTask?: string) => {
+      await handlers.chat(initialTask);
     });
 
   program

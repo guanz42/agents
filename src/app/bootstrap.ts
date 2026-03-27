@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import * as readline from "node:readline";
-import { runOrchestrator, type OrchestratorResult } from "../agents/orchestrator.js";
+import { runOrchestrator } from "../agents/orchestrator.js";
 import { buildProgram, type CommandHandlers } from "../cli/program.js";
 import { createCliRenderers, type CliRenderers } from "../cli/renderers.js";
 import { createProvider } from "../providers/factory.js";
@@ -14,27 +14,6 @@ import { loadConfig, type AppConfig } from "./config.js";
 
 export interface BootstrapResult {
   program: Command;
-}
-
-export interface RunTaskInput {
-  task: string;
-  config?: Partial<AppConfig>;
-  workspaceRoot?: string;
-  onTextDelta?: (chunk: string) => void | Promise<void>;
-  orchestratorRunner?: (
-    input: Parameters<typeof runOrchestrator>[0],
-  ) => Promise<OrchestratorResult>;
-}
-
-export interface RunTaskResult {
-  sessionId: string;
-  summary: string;
-}
-
-export interface CommandHandlerDeps {
-  config?: Partial<AppConfig>;
-  workspaceRoot?: string;
-  runTaskFn?: (input: RunTaskInput) => Promise<RunTaskResult>;
 }
 
 function resolveProviderFromEnv(): AppConfig["provider"] | undefined {
@@ -53,22 +32,6 @@ function getConfigFromEnv(): Partial<AppConfig> {
     model: process.env.AGENT_MODEL,
     sessionDir: process.env.AGENT_SESSION_DIR,
   };
-}
-
-function sanitizeToolInput(input: unknown): Record<string, unknown> {
-  if (typeof input === "object" && input !== null) {
-    return input as Record<string, unknown>;
-  }
-
-  return { value: String(input) };
-}
-
-function sanitizeToolOutput(output: unknown): Record<string, unknown> {
-  if (typeof output === "object" && output !== null) {
-    return output as Record<string, unknown>;
-  }
-
-  return { value: String(output) };
 }
 
 // Removed DEFAULT_CHAT_TASK - unused constant
@@ -105,7 +68,6 @@ function createReadlineInterface(): readline.Interface {
   return readline.createInterface({
     input: process.stdin,
     output: process.stdout,
-    prompt: "> ",
     terminal: true,
   });
 }
@@ -159,130 +121,37 @@ function getProviderBaseUrl(): string | undefined {
   return process.env.OPENAI_BASE_URL;
 }
 
-export async function runTask(input: RunTaskInput): Promise<RunTaskResult> {
-  const config = loadConfig({
-    ...getConfigFromEnv(),
-    ...input.config,
-  });
-  const workspaceRoot = input.workspaceRoot ?? process.cwd();
-  const provider = createProvider({
-    provider: config.provider,
-    model: config.model,
-    apiKey: getProviderApiKey(config.provider),
-    baseUrl: getProviderBaseUrl(),
-  });
-  const store = createSessionStore(config.sessionDir);
-  const session = await store.startSession({ task: input.task });
-
-  const baseTools = createToolRegistry([
-    createReadFileTool(workspaceRoot),
-    createWriteFileTool(workspaceRoot),
-    createSearchCodeTool(workspaceRoot),
-    createRunCommandTool(workspaceRoot),
-  ]).list();
-  const tools = baseTools.map(
-    (tool): ToolDefinition => ({
-      ...tool,
-      async execute(toolInput: unknown): Promise<unknown> {
-        await store.appendEvent(session.id, {
-          type: "tool_call",
-          payload: {
-            tool: tool.name,
-            input: sanitizeToolInput(toolInput),
-          },
-        });
-
-        const output = await tool.execute(toolInput);
-
-        await store.appendEvent(session.id, {
-          type: "tool_result",
-          payload: {
-            tool: tool.name,
-            output: sanitizeToolOutput(output),
-          },
-        });
-
-        return output;
-      },
-    }),
-  );
-
-  await store.appendEvent(session.id, {
-    type: "user_task",
-    payload: { task: input.task },
-  });
-
-  try {
-    const orchestratorRunner = input.orchestratorRunner ?? runOrchestrator;
-    const result = await orchestratorRunner({
-      task: input.task,
-      provider,
-      tools,
-      onTextDelta: input.onTextDelta,
-    });
-
-    await store.appendEvent(session.id, {
-      type: "delegation",
-      payload: {
-        delegatedAgent: result.delegatedAgent,
-      },
-    });
-
-    await store.appendEvent(session.id, {
-      type: "final_result",
-      payload: {
-        delegatedAgent: result.delegatedAgent,
-        summary: result.summary,
-      },
-    });
-    await store.updateStatus(session.id, "completed");
-
-    return {
-      sessionId: session.id,
-      summary: result.summary,
-    };
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown orchestrator error";
-
-    await store.appendEvent(session.id, {
-      type: "final_result",
-      payload: { error: errorMessage },
-    });
-    await store.updateStatus(session.id, "failed");
-
-    throw error;
-  }
-}
-
 export function createCommandHandlers(
   renderers: CliRenderers,
-  deps: CommandHandlerDeps = {},
+  config?: Partial<AppConfig>,
 ): CommandHandlers {
-  const runTaskFn = deps.runTaskFn ?? runTask;
-
   return {
-    chat: async () => {
-      const config = loadConfig({
+    chat: async (initialTask?: string) => {
+      const loadedConfig = loadConfig({
         ...getConfigFromEnv(),
-        ...deps.config,
+        ...config,
       });
-      const workspaceRoot = deps.workspaceRoot ?? process.cwd();
+      const workspaceRoot = process.cwd();
       const provider = createProvider({
-        provider: config.provider,
-        model: config.model,
-        apiKey: getProviderApiKey(config.provider),
+        provider: loadedConfig.provider,
+        model: loadedConfig.model,
+        apiKey: getProviderApiKey(loadedConfig.provider),
         baseUrl: getProviderBaseUrl(),
       });
-      const store = createSessionStore(config.sessionDir);
+      const store = createSessionStore(loadedConfig.sessionDir);
 
-      const session = await store.startSession({ task: "Interactive chat session" });
+      const session = await store.startSession({ task: initialTask ?? "Interactive chat session" });
 
-      renderers.info("Starting interactive chat session. Type /quit or /exit to end.");
-      renderers.info(`Session ID: ${session.id}`);
-      renderers.info("");
+      if (initialTask && initialTask.trim().length > 0) {
+        renderers.info(`Session ID: ${session.id}`);
+        renderers.info("");
+      } else {
+        renderers.info("Starting interactive chat session. Type /quit or /exit to end.");
+        renderers.info(`Session ID: ${session.id}`);
+        renderers.info("");
+      }
 
       const rl = createReadlineInterface();
-      rl.prompt();
 
       const cleanup = async () => {
         rl.close();
@@ -296,6 +165,13 @@ export function createCommandHandlers(
         await cleanup();
         process.exit(0);
       });
+
+      // Show initial prompt
+      const promptUserInput = (): Promise<string> => {
+        return new Promise((resolve) => {
+          rl.question("> ", resolve);
+        });
+      };
 
       try {
         const baseTools = createToolRegistry([
@@ -313,7 +189,7 @@ export function createCommandHandlers(
                 type: "tool_call",
                 payload: {
                   tool: tool.name,
-                  input: sanitizeToolInput(toolInput),
+                  input: toolInput as Record<string, unknown>,
                 },
               });
 
@@ -323,7 +199,7 @@ export function createCommandHandlers(
                 type: "tool_result",
                 payload: {
                   tool: tool.name,
-                  output: sanitizeToolOutput(output),
+                  output: output as Record<string, unknown>,
                 },
               });
 
@@ -334,11 +210,57 @@ export function createCommandHandlers(
 
         let running = true;
 
+        // Execute initial task if provided
+        if (initialTask && initialTask.trim().length > 0) {
+          const trimmedTask = initialTask.trim();
+
+          await store.appendEvent(session.id, {
+            type: "user_message",
+            payload: { content: trimmedTask },
+          });
+
+          let streamedOutput = false;
+          let agentResponse = "";
+
+          const result = await runOrchestrator({
+            task: trimmedTask,
+            provider,
+            tools,
+            conversationHistory: undefined,
+            onTextDelta: (chunk: string) => {
+              streamedOutput = renderers.stream(chunk) || streamedOutput;
+              agentResponse += chunk;
+            },
+          });
+
+          if (!streamedOutput && agentResponse.length === 0 && result.summary) {
+            renderers.info(result.summary);
+            agentResponse = result.summary;
+          }
+
+          renderers.info("");
+          renderers.info("");
+
+          await store.appendEvent(session.id, {
+            type: "agent_message",
+            payload: { content: agentResponse || result.summary },
+          });
+
+          await store.appendEvent(session.id, {
+            type: "delegation",
+            payload: {
+              delegatedAgent: result.delegatedAgent,
+            },
+          });
+
+          // Show prompt after initial task completes
+        }
+
         while (running) {
           let userInput: string;
 
           try {
-            userInput = await promptUser(rl, "");
+            userInput = await promptUserInput();
           } catch {
             // readline closed (e.g., Ctrl+D or pipe input ended)
             running = false;
@@ -355,7 +277,6 @@ export function createCommandHandlers(
           }
 
           if (trimmedInput.length === 0) {
-            rl.prompt();
             continue;
           }
 
@@ -369,13 +290,11 @@ export function createCommandHandlers(
             } catch {
               renderers.info("Operation cancelled (input ended).");
               renderers.info("");
-              rl.prompt();
               continue;
             }
             if (confirm.toLowerCase() !== "yes") {
               renderers.info("Operation cancelled.");
               renderers.info("");
-              rl.prompt();
               continue;
             }
           }
@@ -436,33 +355,12 @@ export function createCommandHandlers(
         await store.updateStatus(session.id, "failed");
       }
     },
-    run: async (task: string) => {
-      try {
-        let streamedOutput = false;
-        const result = await runTaskFn({
-          task,
-          config: deps.config,
-          workspaceRoot: deps.workspaceRoot,
-          onTextDelta: (chunk: string) => {
-            streamedOutput = renderers.stream(chunk) || streamedOutput;
-          },
-        });
-
-        renderers.info(`session: ${result.sessionId}`);
-        if (!streamedOutput) {
-          renderers.info(result.summary);
-        }
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : "Unknown runtime error";
-        renderers.error(`run failed: ${errorMessage}`);
-      }
-    },
     resume: async (sessionId: string) => {
-      const config = loadConfig({
+      const loadedConfig = loadConfig({
         ...getConfigFromEnv(),
-        ...deps.config,
+        ...config,
       });
-      const store = createSessionStore(config.sessionDir);
+      const store = createSessionStore(loadedConfig.sessionDir);
 
       try {
         const session = await store.readSession(sessionId);
@@ -503,11 +401,11 @@ export function createCommandHandlers(
       }
     },
     history: async () => {
-      const config = loadConfig({
+      const loadedConfig = loadConfig({
         ...getConfigFromEnv(),
-        ...deps.config,
+        ...config,
       });
-      const store = createSessionStore(config.sessionDir);
+      const store = createSessionStore(loadedConfig.sessionDir);
       const sessions = await store.listSessions();
 
       if (sessions.length === 0) {
@@ -526,12 +424,12 @@ export function createCommandHandlers(
 
 export interface BootstrapOptions {
   renderers?: CliRenderers;
-  commandHandlerDeps?: CommandHandlerDeps;
+  config?: Partial<AppConfig>;
 }
 
 export function bootstrapApp(options: BootstrapOptions = {}): BootstrapResult {
   const renderers = options.renderers ?? createCliRenderers();
-  const handlers = createCommandHandlers(renderers, options.commandHandlerDeps);
+  const handlers = createCommandHandlers(renderers, options.config);
 
   return {
     program: buildProgram(handlers),

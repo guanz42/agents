@@ -9,22 +9,23 @@ vp install
 cp .env.example .env
 # then set OPENAI_API_KEY in .env
 # if using an OpenAI-compatible provider, also set OPENAI_BASE_URL
-pnpm dev -- run "Inspect the sample repo and summarize it"
+pnpm dev                        # Start interactive chat session
+pnpm dev -- "Inspect the repo"  # Run task then enter chat
 pnpm dev -- history
 ```
 
-**Note:** Interactive chat mode (`pnpm dev -- chat`) requires a terminal with stdin support.
+**Note:** Interactive chat mode requires a terminal with stdin support.
 
 ## Command surface
 
 ```bash
-pnpm dev -- chat
-pnpm dev -- run "Implement a tiny parser improvement"
-pnpm dev -- resume <sessionId>
-pnpm dev -- history
+pnpm dev                        # Start interactive chat session (default)
+pnpm dev -- "Fix the bug"       # Run task then enter chat
+pnpm dev -- resume <sessionId>  # Resume a previous session
+pnpm dev -- history             # List previous sessions
 ```
 
-`run` writes JSON session files to `./sessions` (or `AGENT_SESSION_DIR` when configured).
+All commands write JSON session files to `./sessions` (or `AGENT_SESSION_DIR` when configured).
 
 The CLI loads `.env` automatically at startup. If you use `AGENT_PROVIDER=openai-compatible`, configure both `OPENAI_API_KEY` and `OPENAI_BASE_URL`.
 
