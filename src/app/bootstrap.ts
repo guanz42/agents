@@ -273,6 +273,7 @@ export function createCommandHandlers(
             renderers.info("");
             renderers.info("Ending chat session.");
             running = false;
+            rl.close();
             continue;
           }
 
