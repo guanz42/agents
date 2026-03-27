@@ -9,17 +9,17 @@ vp install
 cp .env.example .env
 # then set OPENAI_API_KEY in .env
 # if using an OpenAI-compatible provider, also set OPENAI_BASE_URL
-vp dev -- run "Inspect the sample repo and summarize it"
-vp history
+pnpm dev -- run "Inspect the sample repo and summarize it"
+pnpm dev -- history
 ```
 
 ## Command surface
 
 ```bash
-vp dev -- chat
-vp dev -- run "Implement a tiny parser improvement"
-vp dev -- resume <sessionId>
-vp dev -- history
+pnpm dev -- chat
+pnpm dev -- run "Implement a tiny parser improvement"
+pnpm dev -- resume <sessionId>
+pnpm dev -- history
 ```
 
 `run` writes JSON session files to `./sessions` (or `AGENT_SESSION_DIR` when configured).
@@ -31,9 +31,16 @@ The CLI loads `.env` automatically at startup. If you use `AGENT_PROVIDER=openai
 This project uses [Vite+](https://viteplus.dev/) as the unified toolchain:
 
 ```bash
-vp dev        # Start development mode
 vp test       # Run tests
 vp check      # Run format, lint, and type checks
 vp build      # Build for production
 vp pack       # Build library package
+```
+
+Run the CLI:
+
+```bash
+pnpm dev -- <command>     # Development (tsx)
+pnpm run build            # Build to ./dist
+./dist/index.js <command> # Run built version
 ```
