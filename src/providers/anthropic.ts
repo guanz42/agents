@@ -1,15 +1,15 @@
-import type { ProviderClient, ProviderConfig } from './types.js'
+import type { ProviderClient, ProviderConfig } from "./types.js";
 
 export function createAnthropicProvider(config: ProviderConfig): ProviderClient {
   return {
-    name: 'anthropic',
+    name: "anthropic",
     model: config.model,
     async createModel() {
       return {
-        provider: 'anthropic',
+        provider: "anthropic",
         model: config.model,
-        status: 'planned-extension'
-      }
-    }
-  }
+        status: "planned-extension",
+      };
+    },
+  };
 }

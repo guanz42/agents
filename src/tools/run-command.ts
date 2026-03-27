@@ -1,47 +1,49 @@
-import { execa } from 'execa'
-import { z } from 'zod'
-import type { ToolDefinition } from './registry.js'
+import { execa } from "execa";
+import { z } from "zod";
+import type { ToolDefinition } from "./registry.js";
 
 export interface RunCommandInput {
-  command: string
+  command: string;
 }
 
 export interface RunCommandOutput {
-  ok: boolean
-  stdout: string
-  stderr: string
-  exitCode: number
+  ok: boolean;
+  stdout: string;
+  stderr: string;
+  exitCode: number;
 }
 
 export const runCommandSchema = z.object({
-  command: z.string().min(1, 'command is required')
-})
+  command: z.string().min(1, "command is required"),
+});
 
-export function createRunCommandTool(workspaceRoot: string): ToolDefinition<RunCommandInput, RunCommandOutput> {
+export function createRunCommandTool(
+  workspaceRoot: string,
+): ToolDefinition<RunCommandInput, RunCommandOutput> {
   return {
-    name: 'run_command',
-    description: 'Run a local shell command inside the workspace',
+    name: "run_command",
+    description: "Run a local shell command inside the workspace",
     schema: runCommandSchema,
     async execute(input: RunCommandInput): Promise<RunCommandOutput> {
       try {
-        const result = await execa({ shell: true, cwd: workspaceRoot })`${input.command}`
+        const result = await execa({ shell: true, cwd: workspaceRoot })`${input.command}`;
 
         return {
           ok: true,
           stdout: result.stdout,
           stderr: result.stderr,
-          exitCode: result.exitCode ?? 0
-        }
+          exitCode: result.exitCode ?? 0,
+        };
       } catch (error) {
-        const failure = error as { stdout?: string; stderr?: string; exitCode?: number }
+        const failure = error as { stdout?: string; stderr?: string; exitCode?: number };
 
         return {
           ok: false,
-          stdout: failure.stdout ?? '',
-          stderr: failure.stderr ?? '',
-          exitCode: failure.exitCode ?? 1
-        }
+          stdout: failure.stdout ?? "",
+          stderr: failure.stderr ?? "",
+          exitCode: failure.exitCode ?? 1,
+        };
       }
-    }
-  }
+    },
+  };
 }

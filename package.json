@@ -2,16 +2,17 @@
   "name": "coding-agent-demo",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
   "bin": {
     "agent": "./dist/index.js"
   },
+  "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsx src/index.ts",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "lint": "tsc --noEmit"
+    "test": "vp test run",
+    "test:watch": "vp test",
+    "lint": "tsc --noEmit",
+    "prepare": "vp config"
   },
   "dependencies": {
     "@openai/agents": "^0.0.10",
@@ -23,6 +24,15 @@
   "devDependencies": {
     "tsx": "^4.19.3",
     "typescript": "^5.8.2",
-    "vitest": "^3.0.8"
+    "vite": "npm:@voidzero-dev/vite-plus-core@latest",
+    "vite-plus": "latest",
+    "vitest": "npm:@voidzero-dev/vite-plus-test@latest"
+  },
+  "packageManager": "pnpm@10.33.0",
+  "pnpm": {
+    "overrides": {
+      "vite": "npm:@voidzero-dev/vite-plus-core@latest",
+      "vitest": "npm:@voidzero-dev/vite-plus-test@latest"
+    }
   }
 }
