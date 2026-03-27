@@ -16,10 +16,10 @@ vp history
 ## Command surface
 
 ```bash
-vp chat
-vp run "Implement a tiny parser improvement"
-vp resume <sessionId>
-vp history
+vp dev -- chat
+vp dev -- run "Implement a tiny parser improvement"
+vp dev -- resume <sessionId>
+vp dev -- history
 ```
 
 `run` writes JSON session files to `./sessions` (or `AGENT_SESSION_DIR` when configured).
