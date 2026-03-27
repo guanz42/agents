@@ -13,6 +13,8 @@ pnpm dev -- run "Inspect the sample repo and summarize it"
 pnpm dev -- history
 ```
 
+**Note:** Interactive chat mode (`pnpm dev -- chat`) requires a terminal with stdin support.
+
 ## Command surface
 
 ```bash
