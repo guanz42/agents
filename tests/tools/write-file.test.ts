@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, realpathSync, symlinkSync } from
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { createWriteFileTool } from '../../src/tools/write-file.js'
+import { createWriteFileTool, writeFileSchema } from '../../src/tools/write-file.js'
 
 describe('write_file tool', () => {
   it('writes a file inside the workspace', async () => {
@@ -16,6 +16,11 @@ describe('write_file tool', () => {
     expect(result.path).toBe(realpathSync(target))
     expect(result.bytesWritten).toBe(11)
     expect(readFileSync(target, 'utf8')).toBe('hello tools')
+  })
+
+  it('exposes the expected input schema', () => {
+    const tool = createWriteFileTool(process.cwd())
+    expect(tool.schema).toBe(writeFileSchema)
   })
 
   it('rejects writing through a symlinked directory that escapes the workspace root', async () => {

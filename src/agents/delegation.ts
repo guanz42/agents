@@ -27,7 +27,7 @@ export function adaptToolsForAgentSdk(tools: ToolDefinition[]): Tool[] {
     tool({
       name: localTool.name,
       description: localTool.description,
-      parameters: permissiveToolParameters,
+      parameters: localTool.schema ?? permissiveToolParameters,
       async execute(input) {
         return localTool.execute(input)
       }

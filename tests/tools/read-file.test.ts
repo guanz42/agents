@@ -2,7 +2,7 @@ import { mkdtempSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { createReadFileTool } from '../../src/tools/read-file.js'
+import { createReadFileTool, readFileSchema } from '../../src/tools/read-file.js'
 
 describe('read_file tool', () => {
   it('reads a file inside the workspace', async () => {
@@ -15,6 +15,11 @@ describe('read_file tool', () => {
     expect(result.ok).toBe(true)
     expect(result.path).toBe(filePath)
     expect(result.content).toContain('sample repo')
+  })
+
+  it('exposes the expected input schema', () => {
+    const tool = createReadFileTool(process.cwd())
+    expect(tool.schema).toBe(readFileSchema)
   })
 
   it('rejects reading through a symlink that escapes the workspace root', async () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createRunCommandTool } from '../../src/tools/run-command.js'
+import { createRunCommandTool, runCommandSchema } from '../../src/tools/run-command.js'
 
 describe('run_command tool', () => {
   it('runs a successful command', async () => {
@@ -10,6 +10,11 @@ describe('run_command tool', () => {
     expect(result.ok).toBe(true)
     expect(result.stdout.trim()).toBe('ok')
     expect(result.exitCode).toBe(0)
+  })
+
+  it('exposes the expected input schema', () => {
+    const tool = createRunCommandTool(process.cwd())
+    expect(tool.schema).toBe(runCommandSchema)
   })
 
   it('returns structured failure data for a failing command', async () => {

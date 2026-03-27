@@ -1,5 +1,6 @@
 import { lstat, mkdir, realpath, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { z } from 'zod'
 import type { ToolDefinition } from './registry.js'
 
 export interface WriteFileInput {
@@ -13,6 +14,11 @@ export interface WriteFileOutput {
   bytesWritten: number
   error?: string
 }
+
+export const writeFileSchema = z.object({
+  path: z.string().min(1, 'path is required'),
+  content: z.string()
+})
 
 function assertInsideWorkspace(workspaceRoot: string, targetPath: string): void {
   const relativePath = path.relative(workspaceRoot, targetPath)
@@ -90,7 +96,7 @@ export function createWriteFileTool(workspaceRoot: string): ToolDefinition<Write
   return {
     name: 'write_file',
     description: 'Write a UTF-8 file inside the workspace',
-    schema: null,
+    schema: writeFileSchema,
     async execute(input: WriteFileInput): Promise<WriteFileOutput> {
       let targetPath = ''
 

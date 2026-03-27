@@ -1,4 +1,5 @@
 import { execa } from 'execa'
+import { z } from 'zod'
 import type { ToolDefinition } from './registry.js'
 
 export interface RunCommandInput {
@@ -12,11 +13,15 @@ export interface RunCommandOutput {
   exitCode: number
 }
 
+export const runCommandSchema = z.object({
+  command: z.string().min(1, 'command is required')
+})
+
 export function createRunCommandTool(workspaceRoot: string): ToolDefinition<RunCommandInput, RunCommandOutput> {
   return {
     name: 'run_command',
     description: 'Run a local shell command inside the workspace',
-    schema: null,
+    schema: runCommandSchema,
     async execute(input: RunCommandInput): Promise<RunCommandOutput> {
       try {
         const result = await execa({ shell: true, cwd: workspaceRoot })`${input.command}`

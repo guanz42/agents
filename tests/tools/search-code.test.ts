@@ -2,7 +2,7 @@ import { chmodSync, mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { createSearchCodeTool } from '../../src/tools/search-code.js'
+import { createSearchCodeTool, searchCodeSchema } from '../../src/tools/search-code.js'
 
 describe('search_code tool', () => {
   it('returns matches from source files under the workspace', async () => {
@@ -19,6 +19,11 @@ describe('search_code tool', () => {
       line: expect.any(Number),
       preview: expect.stringContaining('hello')
     })
+  })
+
+  it('exposes the expected input schema', () => {
+    const tool = createSearchCodeTool(process.cwd())
+    expect(tool.schema).toBe(searchCodeSchema)
   })
 
   it('ignores node_modules while searching', async () => {

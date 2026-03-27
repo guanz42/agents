@@ -1,5 +1,6 @@
 import { readdir, readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
+import { z } from 'zod'
 import type { ToolDefinition } from './registry.js'
 
 const IGNORED_DIRECTORIES = new Set(['.git', 'node_modules', 'dist', 'coverage'])
@@ -21,6 +22,10 @@ export interface SearchCodeOutput {
   matches: SearchCodeMatch[]
   error?: string
 }
+
+export const searchCodeSchema = z.object({
+  query: z.string().min(1, 'query is required')
+})
 
 async function collectFiles(rootDir: string): Promise<string[]> {
   const entries = await readdir(rootDir, { withFileTypes: true })
@@ -71,7 +76,7 @@ export function createSearchCodeTool(workspaceRoot: string): ToolDefinition<Sear
   return {
     name: 'search_code',
     description: 'Search text across files in the workspace',
-    schema: null,
+    schema: searchCodeSchema,
     async execute(input: SearchCodeInput): Promise<SearchCodeOutput> {
       try {
         const files = await collectFiles(path.resolve(workspaceRoot))

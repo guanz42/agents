@@ -3,6 +3,7 @@ import {
   chooseSubAgent,
   createDelegatedAgent
 } from '../../src/agents/delegation.js'
+import { readFileSchema } from '../../src/tools/read-file.js'
 import { runOrchestrator } from '../../src/agents/orchestrator.js'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -60,6 +61,10 @@ describe('chooseSubAgent', () => {
     expect(chooseSubAgent('Review the result and check for regressions')).toBe('reviewer-agent')
   })
 
+  it('routes mixed English-Chinese review prompts to reviewer-agent', () => {
+    expect(chooseSubAgent('review当前代码')).toBe('reviewer-agent')
+  })
+
   it('routes common coding verbs to coding-agent', () => {
     expect(chooseSubAgent('Fix and debug the failing tests')).toBe('coding-agent')
     expect(chooseSubAgent('Update the parser implementation')).toBe('coding-agent')
@@ -103,6 +108,34 @@ describe('createDelegatedAgent', () => {
 
   it('returns null when role is null', () => {
     expect(createDelegatedAgent(null, tools, model)).toBeNull()
+  })
+
+  it('gives reviewer-agent bounded code review instructions', () => {
+    const agent = createDelegatedAgent('reviewer-agent', tools, model)
+    expect(agent?.instructions).toContain('Review the current workspace code')
+    expect(agent?.instructions).toContain('search_code')
+    expect(agent?.instructions).toContain('read_file')
+  })
+})
+
+describe('adaptToolsForAgentSdk', () => {
+  it('passes each tool schema through to the sdk tool definition', () => {
+    const [sdkTool] = adaptToolsForAgentSdk([
+      {
+        name: 'read_file',
+        description: 'Read a file',
+        schema: readFileSchema,
+        execute: async () => ({ ok: true })
+      }
+    ])
+
+    expect(sdkTool.type).toBe('function')
+
+    if (sdkTool.type !== 'function') {
+      throw new Error('expected function tool')
+    }
+
+    expect(sdkTool.parameters).toBe(readFileSchema)
   })
 })
 

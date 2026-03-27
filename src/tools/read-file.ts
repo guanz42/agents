@@ -1,5 +1,6 @@
 import { readFile, realpath } from 'node:fs/promises'
 import path from 'node:path'
+import { z } from 'zod'
 import type { ToolDefinition } from './registry.js'
 
 export interface ReadFileInput {
@@ -12,6 +13,10 @@ export interface ReadFileOutput {
   content: string
   error?: string
 }
+
+export const readFileSchema = z.object({
+  path: z.string().min(1, 'path is required')
+})
 
 function assertInsideWorkspace(workspaceRoot: string, targetPath: string): void {
   const relativePath = path.relative(workspaceRoot, targetPath)
@@ -48,7 +53,7 @@ export function createReadFileTool(workspaceRoot: string): ToolDefinition<ReadFi
   return {
     name: 'read_file',
     description: 'Read a UTF-8 file inside the workspace',
-    schema: null,
+    schema: readFileSchema,
     async execute(input: ReadFileInput): Promise<ReadFileOutput> {
       let targetPath = ''
 

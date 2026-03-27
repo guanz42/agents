@@ -1,7 +1,9 @@
+import type { z } from 'zod'
+
 export interface ToolDefinition<TInput = unknown, TOutput = unknown> {
   name: string
   description: string
-  schema: unknown
+  schema?: z.ZodObject<z.ZodRawShape>
   execute(input: TInput): Promise<TOutput>
 }
 
