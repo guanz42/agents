@@ -1,0 +1,9 @@
+{"id":"G01","mode":"normal","expected_status":"completed"}
+{"id":"G02","mode":"approve_followup","expected_status":"completed"}
+{"id":"G03","mode":"crash_file_effect","expected_status":"completed"}
+{"id":"G04","mode":"crash_remote_effect","expected_status":"completed"}
+{"id":"G05","mode":"lost_external_reply","expected_status":"completed"}
+{"id":"G06","mode":"premature_finish","expected_status":"failed","expected_reason":"report_missing"}
+{"id":"G07","mode":"forbidden_tool","expected_status":"failed","expected_reason":"report_missing"}
+{"id":"G08","mode":"bad_csv","expected_status":"failed","expected_reason":"report_missing"}
+{"id":"G09","mode":"budget_one_turn","expected_status":"budget_exhausted"}
