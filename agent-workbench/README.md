@@ -113,7 +113,7 @@ examples/             # sample task fixture
 
 ## 8. 如何与 16 周教程结合
 
-章节仍以“场景 → 图解 → 最小独立实验 → 测试 → 术语 → 进阶”为第一层。每章新增 **第 08 节：Agent Workbench 工程实战**，与本仓库模块和集成测试对应。
+课程已调整为**单条连续学习路径**：从真实工作问题出发，用最小代码理解机制，然后在同一 Agent Workbench 主工程中完成对应开发和测试。工程实践已经嵌入各章的实现与验证部分，不再设置独立的“第 08 节工程实战”。
 
 W01–W04：模型协议/Runtime/Tools；W05–W06：Context/Checkpoint 与恢复；W07–W10：Workspace/Skills/Progress/Artifact；W11–W12：是否真的需要 Multi-Agent 的受控对照；W13–W14：Golden Task、Trace、效果与性能；W15–W16：审批/安全/整体验收与架构 ADR。
 
